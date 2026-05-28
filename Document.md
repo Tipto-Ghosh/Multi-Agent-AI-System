@@ -15,7 +15,7 @@ including a CrewAI agent, a different framework entirely. Ollama runs all infere
 locally. Langfuse captures every trace.
 
 
-## Chapter-1: When to Use Multiple Agents
+## Chapter 1: When to Use Multiple Agents
 Before writing any code, we should answer a question that most multi-agent tutorials skip entirely: does our problem actually need multiple agents?
 
 This matters because adding agents has a real cost. More agents means more moving parts, more potential failure points, shared state that can be corrupted from multiple directions, and debugging that requires following execution across process boundaries. A single agent with good tools is often the simpler, faster, and more reliable solution.
@@ -176,4 +176,47 @@ Here is the boundaries:
 - `Boundary 2`: Standalone Service / Reusability. Will this specific agent be useful to other software applications in your company? For example, if you build a "Compliance Grading Agent", and tomorrow the HR mobile app and the internal web portal both want to use it independently, it should be an A2A service. It runs on its own server and accepts incoming agent requests.
 
 - `Boundary 3`: Team & Deployment Scale. Are two different teams building these agents? If Team Alpha updates the "Payment Agent" on a Tuesday, they shouldn't have to redeploy Team Beta's "Inventory Agent." If they are deployed completely independently on different servers, they must communicate via A2A.
+
+## Chapter 2: Stateful Orchestration with LangGraph
+LangGraph models a multi-agent workflow as a directed graph. Nodes are Python functions: your agent code. Edges define the routing between them. Every node reads from and writes to a shared state object. LangGraph checkpoints that state to SQLite after every node runs.
+
+That last part is what makes it a production tool rather than a convenience wrapper. A naive multi-agent loop written as a `for` loop loses everything the moment it crashes. LangGraph doesn't. The checkpoint survives the crash, and `graph.invoke()` with the same session ID picks up exactly where it left off.
+
+This chapter builds the graph foundation: the shared state definition that all four agents use, the first working agent node, and the graph that wires it together.
+
+### 2.1 The Shared State
+Every node in the graph receives the complete state as a `dict` and returns a partial update with only the keys it changed. LangGraph merges that update into the full state and saves a checkpoint before calling the next node.
+
+The state definition in `src/graph/state.py` starts with four dataclasses that hold structured data,
+then defines the AgentState TypedDict that LangGraph manages
+
+A few design decisions need to understand.
+**Why TypedDict and not a regular class?** 
+When you build an agent workflow in LangGraph, all your agents need to read from and write to a shared memory box called the State. LangGraph expects this memory box to look and act like a standard Python dictionary (`dict`).
+While you could just use a plain Python dictionary, it comes with a major downside: it is very easy to make typos. If you type `state["user_name"]` in one agent and accidently type `state["usr_name"]` in another, your code will break, and your code editor (IDE) won't warn you ahead of time.
+To fix this, we use TypedDict or Pydantic `BaseModel`. Here is how to choose between them:
+
+- Option 1: TypedDict (The Lightweight Guardrail)
+`TypedDict` tells your code editor exactly what keys are allowed to exist in your memory box and what type of data (like text, numbers, or lists) belongs in them.
+
+  - The Benefit: It gives you "type safety." If you misspell a key while coding, your IDE will immediately highlight it in red and catch the error before you even run the program. It does all this while remaining a lightweight dictionary under the hood.
+
+- Option 2: Pydantic `BaseModel` (The Heavy-Duty Inspector)
+  If you want even stricter control, you can use a Pydantic `BaseModel` instead of `TypedDict`.
+  - The Benefit: Pydantic doesn't just warn your code editor; it actively validates the data at runtime. If an agent tries to accidentally force a piece of text into a slot reserved for a number, Pydantic will instantly stop it and throw an error.
+  - The Bonus: You can add specific descriptions to each property. This is incredibly useful because you can pass these descriptions directly to your LLM, helping the AI understand exactly what each piece of memory is used for.
+
+Summary: Use TypedDict if you just want a simple, clean way to prevent typos in your code. Upgrade to Pydantic if you need strict data validation or want to describe your data fields so the AI can understand them better.
+
+### 2.2 The Curriculum Planner: the First Agent Node
+The Curriculum Planner is the simplest agent in the system: one LLM call, one JSON response, one dataclass output. No tools, no loops. It demonstrates the pattern every agent follows: read from state, call LLM, parse output, return partial state update.
+
+Two things about the model setup at this node:
+- `temperature = 0.1`. Very low, because we want structured JSON output and it needs 
+consistency. A higher temperature introduces variation that makes JSON parsing 
+unreliable.
+- Second `format = "json"`.This is Ollama's JSON mode, a constraint at the inference 
+level. The model can't produce output that isn't valid JSON, regardless of what the 
+prompt asks. It's stronger than just telling the model to output JSON in the system 
+prompt.
 
