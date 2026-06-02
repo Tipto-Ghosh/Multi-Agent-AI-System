@@ -40,6 +40,16 @@ class StudyRoadmap:
         return all(t.status in ("completed" , "needs_review") for t in self.topics)
 
 @dataclass
+class QuizQuestion:
+    """A Question for a quiz."""
+    qestion: str 
+    expected_answer: str 
+    user_answer: str
+    correct: bool
+    feedback: str 
+    score: float
+
+@dataclass
 class QuizResult:
     """The complete result of one quiz session on a single topic."""
     topic: str 
