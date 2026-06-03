@@ -20,4 +20,5 @@ QUIZ_SERVICE_URL = "http://localhost:9001"
 # Quiz generation + grading takes 15-60s depending on model size.
 DEFAULT_TIMEOUT = 120.0
 
+QUIZ_SERVICE_URL = "http://localhost:9001"
 STUDY_BUDDY_URL = "http://localhost:9002"
