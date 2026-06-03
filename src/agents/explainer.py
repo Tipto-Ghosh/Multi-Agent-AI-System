@@ -9,7 +9,34 @@ from mcp_servers.filesystem_server import list_study_files, read_study_file, sea
 from mcp_servers.memory_server import memory_set, memory_get
 from src.constants import OLLAMA_BASE_URL, MODEL_NAME
 from src.prompts import EXPLAINER_SYSTEM_PROMPT
+from src.logger import logging
 
+""" 
+The Explainer agent.
+
+Given a topic from the roadmap, this agent:
+  1. Lists available study files (MCP: list_study_files)
+  2. Searches for relevant content (MCP: search_notes)
+  3. Reads the most relevant file(s) in full (MCP: read_study_file)
+  4. Stores context in session memory (MCP: memory_set)
+  5. Produces a clear, grounded explanation
+  
+The key property: explanations are grounded in YOUR notes,
+not just the LLM's training data. If your notes say something,
+the explanation reflects that. If something isn't in your notes,
+the agent works from general knowledge and says so.
+
+Architecture pattern:
+  This agent demonstrates the tool-calling loop, the fundamental
+  pattern for any agent that uses external tools. The LLM decides
+  which tools to call and in what order. We execute them and feed
+  results back. The loop ends when the LLM produces a final answer.
+
+Integration note:
+  MCP tools are imported directly for single-process development.
+  In production, use MultiServerMCPClient for proper process isolation.
+  The agent logic is identical in both modes.
+"""
 
 @tool
 def tool_list_files()->list[str]:
@@ -150,10 +177,26 @@ def explainer_node(state: dict) -> dict:
             )
         
     if final_response is None:
+        error_message = (
+            f"Explainer reached max iterations ({max_iterations}) "
+            "without producing a final explanation. "
+            "This may indicate the model is stuck in a tool-calling loop."
+        )
+        print(f"[Explainer] WARNING: {error_message}")
+        logging.info(f"[Explainer] WARNING: {error_message}")
         return {
             "messages": messages,
             "error": f"Explainer reached max iterations ({max_iterations}).",
         }
-
+    
+    explanation_length = len(final_response.content)
+    print(f"[Explainer] Explanation: {explanation_length} characters")
     print(f"[Explainer] Explanation: {len(final_response.content)} characters")
-    return {"messages": messages, "error": None}
+    
+    return {
+        "messages": messages, 
+        "error": None,
+        "roadmap": state.get("roadmap"),
+        "current_topic_index": state.get("current_topic_index", 0),
+        "session_id": state.get("session_id", "")
+    }
