@@ -6,6 +6,7 @@ Coach reads that history before deciding what to do next.
 
 from datetime import datetime, timezone
 from mcp.server.fastmcp import FastMCP
+from src.logger import logging
 
 mcp = FastMCP("Memory Server")
 
@@ -59,7 +60,20 @@ def memory_list_keys(session_id: str) -> list[str]:
     """List all keys stored for a session.
     Returns [] if none exists.
     """
-    return list[_store.get(session_id , {}).keys()]
+    logging.info(f"Listing keys for session: '{session_id}'")
+    try:
+        if session_id not in _store:
+            logging.info(f"Session '{session_id}' not found, returning empty list")
+            return []
+        
+        keys = list(_store[session_id].keys())  # Convert to list
+        logging.info(f"Found {len(keys)} keys in session '{session_id}': {keys}")
+        
+        return keys  # Now returns a proper list
+        
+    except Exception as e:
+        logging.error(f"Error listing keys for session '{session_id}': {str(e)}")
+        return []
 
 @mcp.tool()
 def memory_delete(session_id: str, key: str) -> str:

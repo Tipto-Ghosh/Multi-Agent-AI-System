@@ -22,9 +22,13 @@ from src.logger import logging
 from src.exception import LearningAcceleratorException
 
 # Add src directory to Python path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-logging.info(f"Added src directory to Python path: {Path(__file__).parent.parent / 'src'}")
+root_dir = str(Path(__file__).parent.parent)
 
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
+# Initialize a basic config so logging.info actually prints to your console
+logging.info(f"Added root directory to Python path: {root_dir}")
 
 def pytest_configure(config):
     """Register custom markers so pytest doesn't warn about unknown marks."""

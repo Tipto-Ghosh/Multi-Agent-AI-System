@@ -8,6 +8,27 @@ from src.utils.state_utils import get_current_topic
 from src.constants import MODEL_NAME, OLLAMA_BASE_URL
 from src.prompts import GENERATION_PROMPT, GRADING_PROMPT
 
+"""
+The Quiz Generator agent.
+
+Responsibilities:
+  1. Generate quiz questions based on the explained topic
+  2. Present questions to the user interactively via input()
+  3. Grade each answer using the LLM as judge
+  4. Return a QuizResult with score and identified weak areas
+
+The same generate_questions and grade_answer functions are also reused
+by the A2A service wrapper in src/a2a_services/quiz_service.py. The core
+logic is identical in both modes; only the input/output mechanism changes
+(terminal vs HTTP).
+
+Architecture pattern:
+  Two separate LLM calls with different purposes:
+    - Generation call: creative, higher temperature, produces questions
+    - Grading call: analytical, very low temperature, produces scores
+  Separating these prevents the grader from being influenced by
+  the generator's style or vice versa.
+"""
 
 def generate_questions(topic: str, explanation: str, n: int = 3) -> list[dict]:
     """Generate n quiz questions from the Explainer's output."""

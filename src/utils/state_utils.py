@@ -1,6 +1,6 @@
 import sys
 from src.exception import LearningAcceleratorException
-from src.graph.state import Topic
+from src.graph.state import Topic, QuizQuestion, QuizResult
 from src.logger import logger
 
 def initial_state(
@@ -47,6 +47,29 @@ def get_current_topic(state: dict) -> Topic | None:
         state.get("session_id"),
     )
     return roadmap.topics[index] 
+
+
+def get_latest_quiz_result(state: dict) -> QuizResult | None:
+    """
+    Get the most recent quiz result, or None if no quizzes have run.
+
+    Handles dict or dataclass quiz results, after a checkpoint resume,
+    LangGraph may deserialize quiz_results as a list of plain dicts.
+
+    Usage in the progress_coach node to analyze the just-completed quiz.
+    """
+    results = state.get("quiz_results", [])
+    if not results:
+        return None
+
+    latest = results[-1]
+
+    # After msgpack checkpoint deserialization, quiz results may come
+    # back as plain dicts. Reconstruct them using from_dict().
+    if isinstance(latest, dict):
+        return QuizResult.from_dict(latest)
+
+    return latest
 
 def session_is_complete(state: dict) -> bool:
     """True when all topics have been studied."""

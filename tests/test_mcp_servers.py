@@ -24,14 +24,14 @@ from pathlib import Path
 import pytest
 from src.logger import logging
 from src.exception import LearningAcceleratorException
-from mcp_servers.filesystem_server import (
+from src.mcp_servers.filesystem_server import (
     list_study_files,
     read_study_file,
     search_notes,
     get_notes_index,
     NOTES_BASE,
 )
-from mcp_servers.memory_server import (
+from src.mcp_servers.memory_server import (
     memory_set,
     memory_get,
     memory_list_keys,
@@ -39,6 +39,7 @@ from mcp_servers.memory_server import (
     get_session_summary,
     _store,   # direct access for test cleanup
 )
+
 
 logging.info("=" * 20)
 logging.info("MCP Server Test Suite Initialized")
@@ -758,9 +759,12 @@ class TestMemoryServer:
             logging.info(f"Listing keys for new session: '{session_id}'")
             result = memory_list_keys(session_id)
             
-            logging.info(f"Keys returned: {result}")
+            logging.info(f"Keys returned: {result} (type: {type(result).__name__})")
             
+            # Verify it's a list and it's empty
+            assert isinstance(result, list), f"Expected list, got {type(result).__name__}"
             assert result == [], f"Expected empty list, got {result}"
+            assert len(result) == 0, f"Expected 0 keys, got {len(result)}"
             
             logging.info("test_list_keys_empty_for_new_session passed")
             
@@ -777,16 +781,30 @@ class TestMemoryServer:
         
         try:
             session_id = "session-1"
-            keys_to_store = {"key_a": "value_a", "key_b": "value_b", "key_c": "value_c"}
+            keys_to_store = {
+                "key_a": "value_a", 
+                "key_b": "value_b", 
+                "key_c": "value_c"
+            }
             
             for key, value in keys_to_store.items():
                 logging.info(f"Setting {key}='{value}' in {session_id}")
                 memory_set(session_id, key, value)
             
             keys = memory_list_keys(session_id)
-            logging.info(f"Retrieved keys: {keys}")
+            logging.info(f"Retrieved keys: {keys} (type: {type(keys).__name__})")
             
-            assert set(keys) == {"key_a", "key_b", "key_c"}, f"Expected 3 specific keys, got {keys}"
+            # Verify it's a list first
+            assert isinstance(keys, list), f"Expected list, got {type(keys).__name__}"
+            
+            # Convert to set for comparison
+            actual_keys = set(keys)
+            expected_keys = {"key_a", "key_b", "key_c"}
+            
+            assert actual_keys == expected_keys, (
+                f"Expected keys {expected_keys}, got {actual_keys}"
+            )
+            assert len(keys) == 3, f"Expected 3 keys, got {len(keys)}"
             
             logging.info("test_list_keys_returns_all_stored_keys passed")
             
@@ -796,7 +814,7 @@ class TestMemoryServer:
         except Exception as e:
             logging.error(f"Unexpected error in test_list_keys_returns_all_stored_keys: {str(e)}")
             raise LearningAcceleratorException(e, sys)
-
+        
     def test_delete_existing_key(self):
         """Deleting an existing key should make it inaccessible."""
         logging.info("Starting test_delete_existing_key")

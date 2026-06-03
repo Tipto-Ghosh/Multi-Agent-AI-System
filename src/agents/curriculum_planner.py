@@ -7,6 +7,22 @@ from src.prompts import PLANNER_SYSTEM_PROMPT
 from src.graph.state import AgentState
 from src.utils.curriculum_agent_utils import parse_roadmap_json
 
+""" 
+The Curriculum Planner agent.
+
+Responsibility: take a learning goal string and produce a
+structured StudyRoadmap with ordered topics, time estimates,
+and prerequisites.
+
+This is the simplest agent in the system:
+  - No MCP tools 
+  - One LLM call with structured JSON output
+  - Deterministic parsing into a StudyRoadmap dataclass
+
+It demonstrates the foundational pattern every agent follows:
+  read from state → call LLM → parse output → return state update
+"""
+
 def build_planner_llm() -> ChatOllama:
     """Create a ChatOllama model object with given model name.
     

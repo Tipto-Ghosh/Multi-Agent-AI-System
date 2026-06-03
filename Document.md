@@ -1,7 +1,7 @@
 # How to build a Multi-Agent AI System with LangGraph, MCP and A2A
 
 ## What we are going to build:
-The system we are going to build has four agents coordinated by LangGraph, tow MCP 
+The system we are going to build has four agents coordinated by LangGraph, two MCP 
 servers giving those agents access to external tools, two A2A services that allow 
 cross-framework agent delegation, Langfuse capturing full traces, and DeepEval running 
 automated quality checks.
@@ -16,7 +16,7 @@ locally. Langfuse captures every trace.
 
 
 ## Chapter 1: When to Use Multiple Agents
-Before writing any code, we should answer a question that most multi-agent tutorials skip entirely: does our problem actually need multiple agents?
+Before writing any code, we should answer a question that most multi-agent tutorials skip entirely: **does our problem actually need multiple agents?**
 
 This matters because adding agents has a real cost. More agents means more moving parts, more potential failure points, shared state that can be corrupted from multiple directions, and debugging that requires following execution across process boundaries. A single agent with good tools is often the simpler, faster, and more reliable solution.
 
@@ -219,4 +219,52 @@ unreliable.
 level. The model can't produce output that isn't valid JSON, regardless of what the 
 prompt asks. It's stronger than just telling the model to output JSON in the system 
 prompt.
+
+### 2.3 The Graph Definition
+The graph is wiring, not logic. All business logic lives in the agent modules.
+`src/graph/workflow.py` only describes which nodes exist, how they connect, and what decisions the routing functions make.
+
+**The SqliteSaver connection pattern**
+The `check_same_thread = False` flag is required. SQLite's default behavior prevents a connection created on one thread from being used on another.
+LangGraph runs node functions and checkpoint writes on different threads internally. Without this flag, 
+you'll get `ProgrammingError: SQLite objects created in a thread can only be used in that same thread` at 
+runtime. The flag is safe here because LangGraph serializes checkpoint writes: there's no concurrent write 
+contention.
+
+The routing functions are pure Python. No LLM calls. They read from state and return a string. That string 
+determines which node runs next. Keep control flow logic in Python, not in LLMs. An LLM routing decision 
+introduces non-determinism into your graph's control flow, which makes it very hard to reason about and test.
+
+The `interrupt_before` parameter defaults to an empty list. The terminal interface uses `interrupt()` inside 
+`human_approval_node` to pause for roadmap approval, which you'll see in Chapter 5, so no compile-time 
+interrupt is needed.
+
+The Streamlit UI (Chapter 9) passes `interrupt_before = ["quiz_generator"]` to stop the graph before the quiz node runs, so `input()` is never called inside the graph thread. The same graph builder supports both modes.
+
+Here is what the complete graph looks like:
+![LangGraph workflow Structure](Images/fig_02.png "LangGraph workflow Structure")
+Figure-02: The Complte LangGraph Graph.
+Static edges are solid and Conditional edges are dashed. 
+The routing function determines which path executes at runtime.
+
+## Chapter 3: Standardized Tool Access with MCP
+The Explainer agent needs to read our study notes before it can explain anything. The Progress Coach needs to store and retrieve session data. Both could call Python functions directly, but that would couple every agent to the filesystem layout, the storage schema, and however we have implemented those functions.
+
+The Model Context Protocol solves this with a clean separation: agents describe what they need, tool servers handle how it's done. Change the storage backend, and no agent code changes. Build the same tool server once, and any MCP-compatible agent (LangGraph, CrewAI, Claude Desktop, or anything else) can use it.
+
+### 3.1 MCP's Three Primitives
+MCP has three types of capabilities a server can expose:
+
+1. Tools are executable functions the agent calls with arguments. `read_study_file(filename)` is a Tool. The agent controls when it's called and with what arguments. The server handles the implementation.
+
+2. **Resources** are structured data the agent reads, identified by a URI. `notes://index` is a Resource. Think of these as read-only **HTTP GET** endpoints. The server controls what data is available, the agent reads it on demand.
+
+3. **Prompts** are reusable prompt templates the server owns and the agent requests by name. This system doesn't use Prompts heavily, but they exist for cases where a tool server wants to own the prompt design for its domain.
+
+**The key distinction**: Tools are about actions, Resources are about data. If the agent needs to do something, it's a Tool. If the agent needs to read something structured, it's a Resource.
+
+##  MCP as a stable contract
+Think of MCP as the stable contract between agents and tools. The Explainer agent knows the tool is called `read_study_file` and takes a `filename` argument. Whether the implementation reads from disk, fetches from an S3 bucket, or queries a database is invisible to the agent.
+
+That's the value. You can swap the implementation without touching any agent code.
 
