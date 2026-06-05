@@ -71,7 +71,7 @@ def curriculum_planner_node(state: AgentState) -> dict:
     
     try:
         logging.info("Calling parse_roadmap_json to build the roadmap from planner model's response.")
-        roadmap = parse_roadmap_json(response)
+        roadmap = parse_roadmap_json(response.content)
     except Exception as e:
         logging.info(
             f"[Curriculum Planner] Parse error: {e}"

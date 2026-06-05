@@ -75,7 +75,7 @@ class QuizQuestion:
 
     The Quiz Generator creates these.
     The Progress Coach reads them to identify weak areas."""
-    qestion: str 
+    question: str 
     expected_answer: str 
     user_answer: str = ""
     correct: bool = False

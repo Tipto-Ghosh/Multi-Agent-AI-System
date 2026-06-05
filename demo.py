@@ -9,3 +9,5 @@ model = ChatOllama(
 
 response = model.invoke("Hello")
 print(response.content)
+
+# print(MODEL_NAME)
