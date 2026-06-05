@@ -268,3 +268,19 @@ Think of MCP as the stable contract between agents and tools. The Explainer agen
 
 That's the value. You can swap the implementation without touching any agent code.
 
+### 3.2 How Agents Use MCP Tools: the tool-calling loop
+The Explainer agent is where everything from the state and MCP comes together. It's also the first agent in the system that makes multiple LLM calls: one per tool invocation, iterating until the LLM decides it has enough information to write an explanation.
+
+## Chapter 4: Building the Four-Agent System
+The first three chapters built the foundation: a shared state definition, a graph that checkpoints after every node, two MCP servers, and the Explainer agent that uses those servers to ground its explanations in your actual notes. What you have is an LLM that reads files and explains topics.
+
+This chapter completes the system. You'll add the Quiz Generator and Progress Coach, wire the conditional routing that makes the graph loop through every topic automatically, and run a complete end-to-end session.
+
+### 4.1 The Quiz Generator: LLM as Judge
+The Quiz Generator is the most architecturally interesting agent in the system because it uses two LLM calls with different purposes and different temperatures, deliberately kept separate.
+
+The generation call produces questions from the Explainer's output. It uses temperature=0.4 (enough creativity to produce varied, non-repetitive questions across multiple topics) and format="json" to enforce structured output.
+
+The grading call evaluates the student's answer. It uses temperature=0.1. Analytical, consistent. Grading the same answer twice should produce the same score. Using the same temperature as generation would let the creative settings bleed into the analytical evaluation.
+
+This is a production pattern worth naming: when one workflow has subtasks with fundamentally different requirements, giving them separate LLM calls with separate configurations produces better results than a single call that tries to do both.
